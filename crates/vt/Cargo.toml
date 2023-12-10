@@ -7,6 +7,7 @@ authors = ["Richard Zak <richard.j.zak@gmail.com>"]
 description = "Logic and datatypes for interacting with VirusTotal"
 homepage = "https://malwaredb.net/"
 repository = "https://github.com/malwaredb/malwaredb-rs"
+exclude = ["testdata"]
 
 [dependencies]
 anyhow = { workspace = true }

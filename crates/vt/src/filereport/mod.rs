@@ -1,4 +1,5 @@
 pub mod macho;
+pub mod pe;
 
 use crate::VirusTotalError;
 
@@ -125,6 +126,9 @@ pub struct ScanResultAttributes {
     /// This is a vector since there is a separate `macho::MachInfo` struct per
     /// each architecture if this is a Fat Mach-O file.
     pub macho_info: Option<Vec<macho::MachoInfo>>,
+
+    /// Portable Executable (PE) details, if a PE32 file (Windows, OS2)
+    pub pe_info: Option<pe::PEInfo>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -223,6 +227,7 @@ mod tests {
     #[case(include_str!("../../testdata/0001a1252300b4732e4a010a5dd13a291dcb8b0ebee6febedb5152dfb0bcd488.json"), "DOS COM")]
     #[case(include_str!("../../testdata/001015aafcae8a6942366cbb0e7d39c0738752a7800c41ea1c655d47b0a4d04c.json"), "MS Word Document")]
     #[case(include_str!("../../testdata/b8e7a581d85807ea6659ea2f681bd16d5baa7017ff144aa3030aefba9cbcdfd3.json"), "Mach-O")]
+    #[case(include_str!("../../testdata/ddecc35aa198f401948c73a0d53fd93c4ecb770198ad7db308de026745c56b71.json"), "Win32 EXE")]
     fn deserialize_valid_report(#[case] report: &str, #[case] file_type: &str) {
         let report: FileReportRequestResponse = serde_json::from_str(report)
             .context("failed to deserialize VT report")
@@ -231,6 +236,8 @@ mod tests {
         if let FileReportRequestResponse::Data(data) = report {
             if file_type == "Mach-O" {
                 assert!(data.attributes.macho_info.is_some());
+            } else if file_type == "Win32 EXE" {
+                assert!(data.attributes.pe_info.is_some());
             }
             println!("{data:?}");
             assert_eq!(data.attributes.type_description, file_type);
