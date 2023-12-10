@@ -1,3 +1,5 @@
+pub mod macho;
+
 use crate::VirusTotalError;
 
 use chrono::serde::{ts_seconds, ts_seconds_option};
@@ -6,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum FileReportRequestResponse {
     #[serde(rename = "data")]
     Data(FileReportData),
@@ -14,7 +16,7 @@ pub enum FileReportRequestResponse {
     Error(VirusTotalError),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FileReportData {
     pub attributes: ScanResultAttributes,
 
@@ -24,7 +26,7 @@ pub struct FileReportData {
     pub links: HashMap<String, String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ScanResultAttributes {
     /// When the file was created, often spoofed by malware
     #[serde(default, with = "ts_seconds_option")]
@@ -83,7 +85,7 @@ pub struct ScanResultAttributes {
     pub sha256: String,
 
     /// File extension for this file type
-    pub type_extension: String,
+    pub type_extension: Option<String>,
 
     /// When the file was last analyzed by VirusTotal
     #[serde(with = "ts_seconds")]
@@ -118,9 +120,14 @@ pub struct ScanResultAttributes {
     /// The file's reputation from all votes,
     /// see https://support.virustotal.com/hc/en-us/articles/115002146769-Vote-comment
     pub reputation: u32,
+
+    /// Mach-O details, if a Mach-O file (macOS, iOS, etc)
+    /// This is a vector since there is a separate `macho::MachInfo` struct per
+    /// each architecture if this is a Fat Mach-O file.
+    pub macho_info: Option<Vec<macho::MachoInfo>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Votes {
     /// Votes that the file is harmless
     pub harmless: u32,
@@ -129,14 +136,14 @@ pub struct Votes {
     pub malicious: u32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PopularThreatClassification {
     pub suggested_threat_label: String,
     pub popular_threat_category: Vec<PopularThreatClassificationInner>,
     pub popular_threat_name: Vec<PopularThreatClassificationInner>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PopularThreatClassificationInner {
     /// Votes for this threat type
     pub count: u32,
@@ -146,7 +153,7 @@ pub struct PopularThreatClassificationInner {
 }
 
 /// Result per each anti-virus product
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AnalysisResult {
     /// Type of file or threat
     pub category: String,
@@ -167,7 +174,7 @@ pub struct AnalysisResult {
     pub engine_update: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TrID {
     /// Detected file type
     pub file_type: String,
@@ -176,7 +183,7 @@ pub struct TrID {
     pub probability: f32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LastAnalysisStats {
     /// Anti-virus products which indicate this file is harmless
     pub harmless: u32,
@@ -215,12 +222,16 @@ mod tests {
     #[case(include_str!("../../testdata/fff40032c3dc062147c530e3a0a5c7e6acda4d1f1369fbc994cddd3c19a2de88.json"), "Rich Text Format")]
     #[case(include_str!("../../testdata/0001a1252300b4732e4a010a5dd13a291dcb8b0ebee6febedb5152dfb0bcd488.json"), "DOS COM")]
     #[case(include_str!("../../testdata/001015aafcae8a6942366cbb0e7d39c0738752a7800c41ea1c655d47b0a4d04c.json"), "MS Word Document")]
+    #[case(include_str!("../../testdata/b8e7a581d85807ea6659ea2f681bd16d5baa7017ff144aa3030aefba9cbcdfd3.json"), "Mach-O")]
     fn deserialize_valid_report(#[case] report: &str, #[case] file_type: &str) {
         let report: FileReportRequestResponse = serde_json::from_str(report)
             .context("failed to deserialize VT report")
             .unwrap();
 
         if let FileReportRequestResponse::Data(data) = report {
+            if file_type == "Mach-O" {
+                assert!(data.attributes.macho_info.is_some());
+            }
             println!("{data:?}");
             assert_eq!(data.attributes.type_description, file_type);
             assert_eq!(data.record_type, "file");

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum FileRescanRequestResponse {
     #[serde(rename = "data")]
     Data(FileRescanRequestData),
@@ -12,7 +12,7 @@ pub enum FileRescanRequestResponse {
     Error(VirusTotalError),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FileRescanRequestData {
     #[serde(rename = "type")]
     pub rescan_type: String,
