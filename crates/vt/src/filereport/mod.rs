@@ -1,3 +1,4 @@
+pub mod elf;
 pub mod macho;
 pub mod pe;
 
@@ -27,6 +28,8 @@ pub struct FileReportData {
     pub links: HashMap<String, String>,
 }
 
+/// All scan results
+/// https://virustotal.readme.io/reference/files
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ScanResultAttributes {
     /// When the file was created, often spoofed by malware
@@ -37,6 +40,10 @@ pub struct ScanResultAttributes {
     /// Requires VirusTotal Premium
     pub capabilities_tags: Option<Vec<String>>,
 
+    /// Extracted malware configuration
+    /// Requires VirusTotal Premium
+    pub malware_config: Option<HashMap<String, String>>,
+
     /// A description of the file type
     pub type_description: String,
 
@@ -45,6 +52,9 @@ pub struct ScanResultAttributes {
 
     /// VirusTotal's custom algorithm for clustering similar files
     pub vhash: Option<String>,
+
+    /// Trend Micro's ELF hash
+    pub telfhash: Option<String>,
 
     /// Tags which may show further details of the file type
     pub type_tags: Vec<String>,
@@ -81,6 +91,9 @@ pub struct ScanResultAttributes {
     /// Results from TrID, an attempt to identify the file type
     /// See https://mark0.net/soft-trid-e.html
     pub trid: Option<Vec<TrID>>,
+
+    /// Another file type detection program
+    pub detectiteasy: Option<DetectItEasy>,
 
     /// SHA-256 hash of the file
     pub sha256: String,
@@ -129,6 +142,16 @@ pub struct ScanResultAttributes {
 
     /// Portable Executable (PE) details, if a PE32 file (Windows, OS2)
     pub pe_info: Option<pe::PEInfo>,
+
+    /// SHA-256 hash used my Microsoft's AppLocker to ensure the binary is unmodified
+    pub authentihash: Option<String>,
+
+    /// Executable and Linkable Format (ELF) details, if an ELF (Linux, *BSD, Haiku, Solaris, etc)
+    pub elf_info: Option<elf::ElfInfo>,
+
+    /// Anything else not capture by this struct
+    #[serde(flatten)]
+    pub extra: HashMap<String, serde_json::Value>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -187,6 +210,23 @@ pub struct TrID {
     pub probability: f32,
 }
 
+/// Output from Detect It Easy https://github.com/horsicq/Detect-It-Easy
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DetectItEasy {
+    pub filetype: String,
+    #[serde(default)]
+    pub values: Vec<DetectItEasyValues>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DetectItEasyValues {
+    pub info: Option<String>,
+    #[serde(rename = "type")]
+    pub detection_type: String,
+    pub name: String,
+    pub version: Option<String>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LastAnalysisStats {
     /// Anti-virus products which indicate this file is harmless
@@ -228,6 +268,7 @@ mod tests {
     #[case(include_str!("../../testdata/001015aafcae8a6942366cbb0e7d39c0738752a7800c41ea1c655d47b0a4d04c.json"), "MS Word Document")]
     #[case(include_str!("../../testdata/b8e7a581d85807ea6659ea2f681bd16d5baa7017ff144aa3030aefba9cbcdfd3.json"), "Mach-O")]
     #[case(include_str!("../../testdata/ddecc35aa198f401948c73a0d53fd93c4ecb770198ad7db308de026745c56b71.json"), "Win32 EXE")]
+    #[case(include_str!("../../testdata/de10ba5e5402b46ea975b5cb8a45eb7df9e81dc81012fd4efd145ed2dce3a740.json"), "ELF")]
     fn deserialize_valid_report(#[case] report: &str, #[case] file_type: &str) {
         let report: FileReportRequestResponse = serde_json::from_str(report)
             .context("failed to deserialize VT report")
@@ -238,6 +279,8 @@ mod tests {
                 assert!(data.attributes.macho_info.is_some());
             } else if file_type == "Win32 EXE" {
                 assert!(data.attributes.pe_info.is_some());
+            } else if file_type == "ELF" {
+                assert!(data.attributes.elf_info.is_some());
             }
             println!("{data:?}");
             assert_eq!(data.attributes.type_description, file_type);
