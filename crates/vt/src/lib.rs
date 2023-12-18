@@ -8,6 +8,7 @@ use std::fmt::{Display, Formatter};
 
 use anyhow::{Context, Result};
 use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest::multipart::Form;
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
@@ -25,7 +26,7 @@ impl Display for VirusTotalError {
 
 impl std::error::Error for VirusTotalError {}
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct VirusTotalClient {
     key: Zeroizing<String>,
 }
@@ -88,6 +89,47 @@ impl VirusTotalClient {
 
         Ok(report)
     }
+
+    pub async fn submit(
+        &self,
+        data: Vec<u8>,
+        name: Option<String>,
+    ) -> Result<FileRescanRequestResponse> {
+        let client = reqwest::Client::new();
+        let form = if let Some(file_name) = name {
+            Form::new().part(
+                "file",
+                reqwest::multipart::Part::bytes(data)
+                    .file_name(file_name)
+                    .mime_str("application/octet-stream")
+                    .context("failed to set mime type")?,
+            )
+        } else {
+            Form::new().part(
+                "file",
+                reqwest::multipart::Part::bytes(data)
+                    .mime_str("application/octet-stream")
+                    .context("failed to set mime type")?,
+            )
+        };
+
+        let body = client
+            .post("https://www.virustotal.com/api/v3/files")
+            .headers(self.header())
+            .header("accept", "application/json")
+            .header("content-type", "multipart/form-data")
+            .multipart(form)
+            .send()
+            .await?
+            .bytes()
+            .await?;
+        let json_response = String::from_utf8(body.to_ascii_lowercase())
+            .context("failed to convert response to string")?;
+        let report: FileRescanRequestResponse = serde_json::from_str(&json_response)
+            .context("failed to deserialize VT rescan request")?;
+
+        Ok(report)
+    }
 }
 
 #[cfg(test)]
@@ -129,6 +171,12 @@ mod test {
                     panic!("VT Rescan Error {error}");
                 }
             }
+
+            const ELF: &[u8] = include_bytes!("../../types/testdata/elf/elf_haiku_x86");
+            client
+                .submit(Vec::from(ELF), Some("elf_haiku_x86".to_string()))
+                .await
+                .unwrap();
         } else {
             panic!("`VT_API_KEY` not set!")
         }

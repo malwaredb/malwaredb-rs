@@ -14,7 +14,7 @@ anyhow = { workspace = true }
 chrono = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-reqwest = { workspace = true, features = ["rustls-tls"] }
+reqwest = { workspace = true, features = ["multipart", "rustls-tls"] }
 zeroize = { workspace = true }
 
 [dev-dependencies]

@@ -59,12 +59,20 @@ pub struct ScanResultAttributes {
     /// Tags which may show further details of the file type
     pub type_tags: Vec<String>,
 
+    /// Additional attribute tags
+    #[serde(default)]
+    pub tags: Vec<String>,
+
     /// File names this sample has had when submitted to VirusTotal
     pub names: Vec<String>,
 
     /// When when the file was last modified
     #[serde(with = "ts_seconds")]
     pub last_modification_date: DateTime<Utc>,
+
+    /// Another first seen field
+    #[serde(default, with = "ts_seconds_option")]
+    pub first_seen_itw_date: Option<DateTime<Utc>>,
 
     /// Type tags which can be used with VirusTotal Intelligence
     pub type_tag: String,
@@ -285,6 +293,7 @@ mod tests {
             println!("{data:?}");
             assert_eq!(data.attributes.type_description, file_type);
             assert_eq!(data.record_type, "file");
+            assert!(data.attributes.extra.is_empty());
         } else {
             panic!("File wasn't a report!");
         }
