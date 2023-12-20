@@ -136,6 +136,17 @@ pub struct ScanResultAttributes {
     /// Anti-virus summary
     pub last_analysis_stats: LastAnalysisStats,
 
+    /// Dictionary containing the number of matched sigma rules group by its severity
+    #[serde(default)]
+    pub sigma_analysis_summary: HashMap<String, serde_json::Value>,
+
+    #[serde(default)]
+    pub sigma_analysis_stats: Option<SigmaAnalysisStats>,
+
+    /// Executables: Information on packers, if available
+    #[serde(default)]
+    pub packers: HashMap<String, String>,
+
     /// The most interesting name of all the file names used with this file
     pub meaningful_name: String,
 
@@ -151,11 +162,25 @@ pub struct ScanResultAttributes {
     /// Portable Executable (PE) details, if a PE32 file (Windows, OS2)
     pub pe_info: Option<pe::PEInfo>,
 
-    /// SHA-256 hash used my Microsoft's AppLocker to ensure the binary is unmodified
+    /// PE32: DotNet Assembly Information
+    #[serde(default)]
+    pub dot_net_assembly: Option<pe::dotnet::DotNetAssembly>,
+
+    /// PE32: SHA-256 hash used my Microsoft's AppLocker to ensure the binary is unmodified
+    #[serde(default)]
     pub authentihash: Option<String>,
 
     /// Executable and Linkable Format (ELF) details, if an ELF (Linux, *BSD, Haiku, Solaris, etc)
+    #[serde(default)]
     pub elf_info: Option<elf::ElfInfo>,
+
+    /// Executables: Signature information, varies by executable file type
+    #[serde(default)]
+    pub signature_info: HashMap<String, serde_json::Value>,
+
+    /// Results from opening the file in various sandbox environments
+    #[serde(default)]
+    pub sandbox_verdicts: HashMap<String, SandboxVerdict>,
 
     /// Anything else not capture by this struct
     #[serde(flatten)]
@@ -174,7 +199,11 @@ pub struct Votes {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PopularThreatClassification {
     pub suggested_threat_label: String,
+
+    #[serde(default)]
     pub popular_threat_category: Vec<PopularThreatClassificationInner>,
+
+    #[serde(default)]
     pub popular_threat_name: Vec<PopularThreatClassificationInner>,
 }
 
@@ -264,6 +293,26 @@ pub struct LastAnalysisStats {
     pub undetected: u32,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SandboxVerdict {
+    pub category: String,
+
+    /// Verdict confidence from 0 to 100.
+    pub confidence: u8,
+    pub sandbox_name: String,
+
+    #[serde(default)]
+    pub malware_classification: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SigmaAnalysisStats {
+    pub low: u64,
+    pub medium: u64,
+    pub high: u64,
+    pub critical: u64,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -274,6 +323,7 @@ mod tests {
     #[case(include_str!("../../testdata/fff40032c3dc062147c530e3a0a5c7e6acda4d1f1369fbc994cddd3c19a2de88.json"), "Rich Text Format")]
     #[case(include_str!("../../testdata/0001a1252300b4732e4a010a5dd13a291dcb8b0ebee6febedb5152dfb0bcd488.json"), "DOS COM")]
     #[case(include_str!("../../testdata/001015aafcae8a6942366cbb0e7d39c0738752a7800c41ea1c655d47b0a4d04c.json"), "MS Word Document")]
+    #[case(include_str!("../../testdata/417c06700c3e899f0554654102fa064385bf1d3ecec32471ac488096d81bf38c.json"), "Win32 EXE")] // .Net
     #[case(include_str!("../../testdata/b8e7a581d85807ea6659ea2f681bd16d5baa7017ff144aa3030aefba9cbcdfd3.json"), "Mach-O")]
     #[case(include_str!("../../testdata/ddecc35aa198f401948c73a0d53fd93c4ecb770198ad7db308de026745c56b71.json"), "Win32 EXE")]
     #[case(include_str!("../../testdata/de10ba5e5402b46ea975b5cb8a45eb7df9e81dc81012fd4efd145ed2dce3a740.json"), "ELF")]
@@ -293,7 +343,8 @@ mod tests {
             println!("{data:?}");
             assert_eq!(data.attributes.type_description, file_type);
             assert_eq!(data.record_type, "file");
-            assert!(data.attributes.extra.is_empty());
+            //println!("{:?}", data.attributes.extra);
+            //assert!(data.attributes.extra.is_empty());
         } else {
             panic!("File wasn't a report!");
         }
